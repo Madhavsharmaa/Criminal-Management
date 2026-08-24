@@ -1,206 +1,638 @@
-# The Case File — Criminal Record Management System
+The Case File — Criminal Record Management System
 
-A full rewrite of the original Tkinter + MySQL desktop app as a web app:
+A full rewrite of the original Tkinter + MySQL desktop application as a modern web application.
 
-- **Backend:** FastAPI, storing everything in local JSON files (no database to
-  host or pay for).
-- **Frontend:** Next.js 14 + TypeScript + Tailwind CSS.
-- **Face recognition:** your browser's webcam captures photos, the FastAPI
-  backend detects faces (OpenCV Haar cascade) and trains/matches an LBPH
-  recognizer — the same technique the original desktop app used, just moved
-  server-side so it works from a browser instead of a local camera window.
+The system provides separate Admin and Center portals for managing criminal records, categories, locations, centers, remarks, reports, and browser-based face recognition.
 
-```
+Backend: FastAPI + Firebase Firestore
+Frontend: Next.js 14 + TypeScript + Tailwind CSS
+Authentication: JWT + Firebase service-account integration
+Database: Firebase Firestore
+File Storage: Cloudinary
+Face Recognition: OpenCV Haar Cascade + LBPH
+Deployment: Vercel
 project/
-├── backend/    FastAPI app (Python)
-└── frontend/   Next.js app (TypeScript)
-```
-
----
-
-## 1. Run it locally
-
-### Backend
-
-```bash
+├── backend/     FastAPI backend
+└── frontend/    Next.js frontend
+1. Features
+Criminal Records
+Create criminal records
+Search criminal records
+View criminal details
+Update criminal information
+Delete criminal records
+Upload and replace criminal photographs
+Associate criminal records with categories
+Store family and contact information
+Face Recognition
+Browser-based webcam capture
+Face detection using OpenCV Haar Cascade
+Capture multiple training images
+Store training images in Cloudinary
+Train an LBPH face recognizer
+Store trained model files in Cloudinary
+Recognize faces from browser webcam images
+Match recognized faces against criminal records
+Administration
+Admin authentication
+Center authentication
+Role-based access control
+Administrator management
+Center management
+Category management
+Location management
+Remarks management
+Reports management
+Dashboard statistics
+Password changes
+2. Technology Stack
+Backend
+Python
+FastAPI
+Firebase Admin SDK
+Firebase Firestore
+PyJWT
+Passlib
+bcrypt
+OpenCV
+NumPy
+Cloudinary
+Pydantic
+Frontend
+Next.js 14
+React
+TypeScript
+Tailwind CSS
+Lucide React
+React Hot Toast
+Infrastructure
+Vercel
+Firebase Firestore
+Cloudinary
+3. Run Locally
+Backend
 cd backend
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
+
+Windows:
+
+venv\Scripts\activate
+
+Install dependencies:
+
 pip install -r requirements.txt
 
-cp .env.example .env            # then edit JWT_SECRET at least
-python seed_data.py             # creates demo data in ./data
+Create a .env file:
+
+JWT_SECRET=your-secret-key
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=480
+
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY_ID=your-private-key-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=your-service-account-email
+FIREBASE_CLIENT_ID=your-client-id
+
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+FACE_MATCH_CONFIDENCE_THRESHOLD=60
+
+Start the backend:
 
 uvicorn app.main:app --reload --port 8000
-```
 
-The API is now at `http://localhost:8000`. Interactive docs at
-`http://localhost:8000/docs`.
+The API will be available at:
 
-Demo logins created by `seed_data.py`:
+http://localhost:8000
 
-| Role   | Email                          | Password |
-|--------|---------------------------------|----------|
-| Admin  | krrish@gmail.com                | 123      |
-| Center | aroramanavarora8@gmail.com      | 123      |
+Interactive API documentation:
 
-### Frontend
-
-```bash
+http://localhost:8000/docs
+4. Frontend
 cd frontend
-cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install
+
+Create .env.local:
+
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+Start the development server:
+
 npm run dev
-```
 
-Visit `http://localhost:3000`.
+Open:
 
----
+http://localhost:3000
+5. Database
 
-## 2. How the data storage works
+The application uses Firebase Firestore as its database.
 
-Every "table" from the old MySQL database is now a JSON file under
-`backend/data/` (created automatically the first time you run the app):
+Current collections include:
 
-- `admins.json`, `centers.json`, `categories.json`, `locations.json`,
-  `criminals.json`, `remarks.json`, `reports.json`
+admins
+centers
+categories
+locations
+criminals
+remarks
+reports
+_sequences
 
-Uploaded criminal photos live in `backend/uploads/criminals/`. Webcam photos
-captured for face-recognition training live in `backend/uploads/dataset/<criminal_id>/`,
-and the trained model is written to `backend/uploads/models/`.
+The backend provides a storage abstraction in:
 
-This is intentionally simple — good for a small deployment on a free hosting
-tier. Reads/writes are guarded by an in-process lock so concurrent requests
-don't corrupt a file, but it isn't built for high write concurrency. If you
-outgrow it, `backend/app/storage.py` is the only file that would need to be
-swapped for a real database client — every router just calls
-`storage.<collection>.get/insert/update/delete/find`, so the rest of the app
-wouldn't need to change.
+backend/app/storage.py
 
-**Important:** the `data/` and `uploads/` folders are where all your actual
-records live. Whichever host you use, make sure that folder is either on a
-persistent disk/volume, or back it up — a typical free container filesystem
-is wiped on every redeploy.
+Routers interact with Firestore through:
 
----
+storage.criminals.get(...)
+storage.criminals.insert(...)
+storage.criminals.update(...)
+storage.criminals.delete(...)
+storage.criminals.find(...)
+storage.criminals.all()
 
-## 3. Deploying for free
+This keeps Firestore-specific operations separated from the API routers.
 
-A reasonable free-tier split:
+6. File Storage
 
-- **Frontend → Vercel** (native Next.js support, generous free tier).
-- **Backend → Render or Railway** (free/low-cost Python web service).
+The application uses Cloudinary for persistent file storage instead of relying on the Vercel filesystem.
 
-### Backend (Render example)
+Criminal photographs
 
-1. Push this repo to GitHub.
-2. On Render: New → Web Service → point at the repo, root directory `backend`.
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables from `.env.example` (set a real `JWT_SECRET`,
-   and set `CORS_ORIGINS` to your Vercel URL once you have it).
-6. **Persistent storage:** Render's free tier has an ephemeral filesystem —
-   data written to `backend/data` and `backend/uploads` will be lost on
-   redeploy/restart. Add a Render Disk (a few hundred MB is plenty) mounted
-   at `/opt/render/project/src/backend/data` and another at
-   `.../backend/uploads`, or point `DATA_DIR` / `UPLOADS_DIR` env vars at a
-   mounted disk path. Railway's volumes work the same way. Without a
-   persistent disk, treat this as a demo deployment only.
-7. Run `python seed_data.py` once (Render's shell, or a one-off job) if you
-   want the demo accounts.
+Criminal photographs are stored in Cloudinary.
 
-### Frontend (Vercel)
+Face dataset
 
-1. New Project → import the repo → set root directory to `frontend`.
-2. Environment variable: `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com`
-3. Deploy. Vercel auto-detects Next.js — no other config needed.
-4. Go back to your backend's `CORS_ORIGINS` env var and add the Vercel URL,
-   then redeploy the backend.
+Captured face-training images are stored under:
 
-### A note on the webcam features
+face_dataset/
+└── <criminal_id>/
+    ├── 1
+    ├── 2
+    ├── 3
+    └── ...
+Face recognition model
 
-Browsers only allow camera access (`getUserMedia`) on `https://` origins (or
-`localhost`). Vercel gives you HTTPS automatically, so the Face ID capture
-and Face Scan pages will work once deployed — just make sure your backend
-URL is also HTTPS (Render/Railway give you this by default) so the browser
-doesn't block mixed-content requests.
+The trained model and label mapping are stored under:
 
----
+face_models/
+├── face_trainer.yml
+└── labels.json
 
-## 4. Project structure
+This allows the face-recognition system to work with Vercel's serverless environment without depending on persistent local files.
 
-### Backend (`backend/`)
+7. Face Recognition Architecture
 
-```
-app/
-├── main.py           FastAPI app, CORS, static file mount for /uploads
-├── config.py          Paths, JWT settings, CORS origins
-├── storage.py          JSON "database" (Collection class: get/insert/update/delete/find)
-├── security.py         Password hashing, JWT creation/verification, validators
-├── schemas.py           Pydantic request/response models
-├── deps.py               Auth dependencies (get_current_user, require_admin, etc.)
-├── face_service.py        Webcam-frame face detection, LBPH training & recognition
-└── routers/
-    ├── auth.py            /auth/admin/login, /auth/center/login, /auth/me, /auth/change-password
-    ├── admins.py           /admins (Super Admin only)
-    ├── categories.py        /categories
-    ├── locations.py          /locations, /locations/states (static state→city list)
-    ├── centers.py             /centers
-    ├── criminals.py            /criminals (CRUD, photo upload, capture/train/recognize)
-    ├── remarks.py               /remarks
-    ├── reports.py                /reports
-    └── dashboard.py               /dashboard/stats
-seed_data.py    One-time script to populate demo data
-```
+The original desktop application used a local OpenCV webcam.
 
-### Frontend (`frontend/`)
+The web version uses the browser camera.
 
-```
-app/
-├── page.tsx                     Landing page (choose Admin/Center)
-├── login/admin, login/center     Login pages
-├── admin/                          Admin portal (dashboard, criminals, scan,
-│                                     categories, locations, centers, admins,
-│                                     remarks, reports, change-password)
-└── center/                         Center portal (dashboard, criminals + add
-                                      remark, my remarks, change-password)
-components/
-├── layout/AppShell.tsx    Sidebar + top-level page frame
-├── WebcamCapture.tsx        getUserMedia camera capture, used for both
-│                              Face ID training and the Face Scan tool
-├── ChangePasswordForm.tsx
-└── ui/                          Button, Field (Input/Select/TextArea), Card,
-                                    Modal, Notice, StampBadge
-lib/
-├── api.ts    Fetch wrapper (adds auth header, handles 401s, JSON/FormData)
-├── types.ts   Shared TypeScript interfaces matching the backend schemas
-└── useAuth.ts  useRequireAuth() — client-side route guard by role
-```
+Capture
 
----
+The browser uses:
 
-## 5. Roles & permissions
+navigator.mediaDevices.getUserMedia()
 
-- **Super Admin** — everything, plus manage other Admins.
-- **Admin** — manage criminal records, categories, locations, centers,
-  remarks, reports; cannot manage other admins.
-- **Center** — view criminal records, add/edit/delete their own remarks,
-  file reports; cannot create/edit/delete criminal records or manage centers.
+Captured frames are converted to base64 images and sent to FastAPI.
 
-All of this is enforced on the backend (`app/deps.py` role dependencies), not
-just hidden in the UI.
+Face Detection
 
----
+FastAPI uses:
 
-## 6. What changed from the original desktop app
+OpenCV Haar Cascade
 
-- MySQL → JSON files (no database server or hosting cost).
-- Tkinter windows → Next.js pages with the same workflows (add/search/edit/
-  delete criminals, categories, locations, centers, admins; log remarks;
-  file reports; change password).
-- Local-webcam face capture (`cv2.VideoCapture` on the machine running the
-  app) → browser webcam capture (`getUserMedia`) that uploads frames to the
-  backend, which runs the same Haar-cascade + LBPH pipeline server-side.
-- Plaintext passwords in the database → bcrypt-hashed passwords.
-- Two "criminal" tables in the old schema (`criminal` and `criminals`) were
-  merged into one `criminals` collection with a consistent set of fields.
+to detect the largest face.
+
+The detected face is converted to grayscale and resized to:
+
+200 × 200
+Training
+
+Training images are retrieved from Cloudinary.
+
+The backend trains:
+
+LBPHFaceRecognizer
+
+and generates:
+
+face_trainer.yml
+labels.json
+
+These files are uploaded to Cloudinary.
+
+Recognition
+Browser webcam
+       ↓
+Base64 image
+       ↓
+FastAPI
+       ↓
+Haar Cascade
+       ↓
+LBPH recognizer
+       ↓
+Criminal ID
+       ↓
+Firestore
+       ↓
+Criminal record
+8. Authentication
+
+The backend uses JWT-based authentication.
+
+After successful login, the API generates an access token.
+
+The frontend sends the token using:
+
+Authorization: Bearer <token>
+
+Authentication and authorization are handled through:
+
+backend/app/security.py
+backend/app/deps.py
+
+Firebase Firestore provides persistent application data, while JWT remains the API authentication mechanism.
+
+9. Roles & Permissions
+Super Admin
+
+A Super Admin has full system access and can additionally:
+
+Create administrators
+Manage administrators
+Delete administrators
+Manage centers
+Manage criminal records
+Manage categories
+Manage locations
+Manage remarks
+Manage reports
+Use face recognition
+View dashboard
+Change password
+Admin
+
+An Admin can:
+
+View dashboard
+Manage criminal records
+Manage categories
+Manage locations
+Manage centers
+Manage remarks
+Manage reports
+Use face recognition
+Change password
+
+An Admin cannot manage other administrators.
+
+Center
+
+A Center can:
+
+View criminal records
+Add remarks
+Edit their own remarks
+Delete their own remarks
+File reports
+View relevant information
+Change password
+
+A Center cannot:
+
+Create criminal records
+Edit criminal records
+Delete criminal records
+Manage categories
+Manage locations
+Manage centers
+Manage administrators
+
+All permissions are enforced by the backend.
+
+10. API Structure
+Authentication
+/auth/admin/login
+/auth/center/login
+/auth/me
+/auth/change-password
+Administrators
+/admins
+Centers
+/centers
+/centers/{id}
+Categories
+/categories
+Locations
+/locations
+/locations/states
+Criminals
+/criminals
+/criminals/{id}
+/criminals/{id}/photo
+/criminals/{id}/capture
+/criminals/train
+/criminals/recognize
+Remarks
+/remarks
+Reports
+/reports
+Dashboard
+/dashboard/stats
+11. Project Structure
+Backend
+backend/
+├── app/
+│   ├── main.py
+│   ├── config.py
+│   ├── firebase.py
+│   ├── cloudinary.py
+│   ├── storage.py
+│   ├── security.py
+│   ├── schemas.py
+│   ├── deps.py
+│   ├── face_service.py
+│   │
+│   └── routers/
+│       ├── auth.py
+│       ├── admins.py
+│       ├── categories.py
+│       ├── locations.py
+│       ├── centers.py
+│       ├── criminals.py
+│       ├── remarks.py
+│       ├── reports.py
+│       └── dashboard.py
+│
+├── seed_data.py
+├── requirements.txt
+└── .env
+Frontend
+frontend/
+├── app/
+│   ├── page.tsx
+│   ├── login/
+│   │   ├── admin/
+│   │   └── center/
+│   ├── admin/
+│   └── center/
+│
+├── components/
+│   ├── layout/
+│   │   └── AppShell.tsx
+│   ├── WebcamCapture.tsx
+│   ├── ChangePasswordForm.tsx
+│   └── ui/
+│
+├── lib/
+│   ├── api.ts
+│   ├── types.ts
+│   └── useAuth.ts
+│
+└── package.json
+12. Environment Variables
+Backend
+JWT_SECRET=
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=480
+
+CORS_ORIGINS=
+
+FIREBASE_PROJECT_ID=
+FIREBASE_PRIVATE_KEY_ID=
+FIREBASE_PRIVATE_KEY=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_CLIENT_ID=
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+FACE_MATCH_CONFIDENCE_THRESHOLD=60
+Frontend
+
+Local development:
+
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+Production:
+
+NEXT_PUBLIC_API_URL=https://criminaal-backend.vercel.app
+
+Never expose backend secrets using NEXT_PUBLIC_* environment variables.
+
+13. Deployment
+
+The application is deployed as two separate Vercel applications.
+
+                  ┌─────────────────────┐
+                  │       Browser       │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │ Next.js / Vercel    │
+                  │ Frontend            │
+                  └──────────┬──────────┘
+                             │ HTTPS
+                             ▼
+                  ┌─────────────────────┐
+                  │ FastAPI / Vercel    │
+                  │ Backend             │
+                  └──────┬─────────┬────┘
+                         │         │
+                ┌────────▼───┐ ┌───▼──────────┐
+                │ Firestore  │ │  Cloudinary  │
+                │ Database   │ │ File Storage  │
+                └────────────┘ └──────────────┘
+Frontend
+
+Production environment variable:
+
+NEXT_PUBLIC_API_URL=https://criminaal-backend.vercel.app
+Backend
+
+Production environment variables:
+
+JWT_SECRET
+JWT_ALGORITHM
+JWT_EXPIRE_MINUTES
+
+CORS_ORIGINS
+
+FIREBASE_PROJECT_ID
+FIREBASE_PRIVATE_KEY_ID
+FIREBASE_PRIVATE_KEY
+FIREBASE_CLIENT_EMAIL
+FIREBASE_CLIENT_ID
+
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
+
+FACE_MATCH_CONFIDENCE_THRESHOLD
+CORS
+
+Production:
+
+CORS_ORIGINS=https://criminal-management.vercel.app
+
+For local development as well:
+
+CORS_ORIGINS=https://criminal-management.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+
+After changing Vercel environment variables, redeploy the affected application.
+
+14. Serverless Storage Architecture
+
+The application does not rely on the Vercel filesystem for persistent application data.
+
+Persistent data is stored in:
+
+Firebase Firestore
+        ↓
+Application records
+
+Files are stored in:
+
+Cloudinary
+        ↓
+Criminal photographs
+Face dataset
+Face recognition model
+Label mappings
+
+Temporary files required during face-model training are created only during processing and removed afterwards.
+
+This makes the storage architecture suitable for serverless deployment.
+
+15. Webcam Requirements
+
+Browser camera access requires a secure context.
+
+Production:
+
+https://criminal-management.vercel.app
+
+Local development:
+
+http://localhost:3000
+
+The user must grant camera permission to the browser.
+
+16. Security
+
+The application includes:
+
+JWT authentication
+Role-based authorization
+bcrypt password hashing
+Backend-side permission enforcement
+CORS configuration
+Environment-based secrets
+Firebase service-account authentication
+Cloudinary authenticated uploads
+No frontend exposure of backend secrets
+
+Never commit:
+
+.env
+.env.local
+Firebase private keys
+Cloudinary API secrets
+JWT secrets
+
+to Git.
+
+17. What Changed From the Original Desktop Application
+
+The original application used:
+
+Tkinter
+MySQL
+Local webcam
+Local filesystem
+
+The new web application uses:
+
+Next.js
+FastAPI
+Firebase Firestore
+Cloudinary
+Browser webcam
+OpenCV
+LBPH
+Vercel
+Database
+MySQL
+   ↓
+Firebase Firestore
+Interface
+Tkinter
+   ↓
+Next.js + Tailwind CSS
+Webcam
+cv2.VideoCapture()
+   ↓
+Browser getUserMedia()
+File Storage
+Local filesystem
+   ↓
+Cloudinary
+Face Recognition
+
+The original Haar Cascade + LBPH approach has been retained, but the workflow has been adapted for browser-based capture and serverless deployment.
+
+18. Production URLs
+Frontend
+https://criminal-management.vercel.app
+Backend
+https://criminaal-backend.vercel.app
+Backend Health Check
+https://criminaal-backend.vercel.app/
+
+Expected response:
+
+{
+  "status": "ok",
+  "service": "criminal-record-management-api"
+}
+API Documentation
+https://criminaal-backend.vercel.app/docs
+19. Demo Accounts
+Role	Email	Password
+Admin	krrish@gmail.com	123
+Center	aroramanavarora8@gmail.com	123
+
+These accounts are intended for development/testing.
+
+Do not use simple demo credentials for a production deployment containing real records.
+
+20. Future Improvements
+
+Potential improvements include:
+
+Firebase Authentication
+Modern deep-learning face recognition
+Liveness detection / anti-spoofing
+Face embeddings
+Pagination for large datasets
+Advanced criminal-record search
+Audit logs
+Fine-grained permissions
+Automated backups
+Rate limiting
+Production monitoring
+Automated tests
+CI/CD
+Improved model accuracy
+License
+
+This project is intended for educational and project-development purposes.
